@@ -1,2 +1,9 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="com.ody.usbservicelib" />
+    package="com.ody.usbservicelib" >
+    <application>
+        <service
+            android:name="com.ody.usbservicelib.DeviceService"
+            android:enabled="true">
+        </service>
+    </application>
+</manifest>

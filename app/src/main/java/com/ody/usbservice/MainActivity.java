@@ -25,7 +25,16 @@ public class MainActivity extends AppCompatActivity {
         public void onReceive(Context context, Intent intent) {
             switch (intent.getAction()) {
                 case DeviceService.ACTION_USB_PERMISSION_GRANTED: // USB PERMISSION GRANTED
-                    Toast.makeText(context, "USB Ready", Toast.LENGTH_SHORT).show();
+
+                    int deviceVendor = intent.getIntExtra("device_vendorId",0);
+                    if (deviceVendor != 0){
+                        //Toast.makeText(context, "in here", Toast.LENGTH_SHORT).show();
+                        if (deviceVendor == 6997){
+                            String tets = "";
+                            //Toast.makeText(context, "USB Ready", Toast.LENGTH_SHORT).show();
+                        }
+                    }
+
                     break;
                 case DeviceService.ACTION_USB_PERMISSION_NOT_GRANTED: // USB PERMISSION NOT GRANTED
                     Toast.makeText(context, "USB Permission not granted", Toast.LENGTH_SHORT).show();

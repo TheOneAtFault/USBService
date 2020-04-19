@@ -10,6 +10,7 @@ import android.hardware.usb.UsbDevice;
 import android.hardware.usb.UsbDeviceConnection;
 import android.hardware.usb.UsbManager;
 import android.os.Binder;
+import android.os.Bundle;
 import android.os.IBinder;
 import android.util.Log;
 
@@ -52,7 +53,7 @@ public class DeviceService extends Service {
         }
     }
 
-    public void destroy(){
+    public void destroy() {
         unregisterReceiver(usbReceiver);
         DeviceService.SERVICE_CONNECTED = false;
     }
@@ -74,7 +75,18 @@ public class DeviceService extends Service {
                 if (granted) // User accepted our USB connection. Try to open the device as a serial port
                 {
                     Intent intent = new Intent(ACTION_USB_PERMISSION_GRANTED);
+
+                    //device information
+                    if (device != null){
+                        Bundle bundle = new Bundle();
+                        bundle.putInt("device_vendorId", device.getVendorId());
+                        bundle.putInt("device_productId", device.getProductId());
+                        bundle.putInt("device_Id", device.getDeviceId());
+                        bundle.putString("device_Name", device.getDeviceName());
+                        intent.putExtras(bundle);
+                    }
                     arg0.sendBroadcast(intent);
+
                     connection = usbManager.openDevice(device);
                 } else // User not accepted our USB connection. Send an Intent to the Main Activity
                 {
@@ -82,6 +94,7 @@ public class DeviceService extends Service {
                     arg0.sendBroadcast(intent);
                 }
             } else if (arg1.getAction().equals(ACTION_USB_ATTACHED)) {
+                device = null;
                 Intent intent = new Intent(ACTION_USB_CONNECTED);
                 arg0.sendBroadcast(intent);
             } else if (arg1.getAction().equals(ACTION_USB_DETACHED)) {
@@ -101,17 +114,21 @@ public class DeviceService extends Service {
     }
 
     private void requestUserPermission() {
-        Log.d(TAG, String.format("requestUserPermission(%X:%X)", device.getVendorId(), device.getProductId() ) );
+        Log.d(TAG, String.format("requestUserPermission(%X:%X)", device.getVendorId(), device.getProductId()));
         PendingIntent mPendingIntent = PendingIntent.getBroadcast(this, 0, new Intent(ACTION_USB_PERMISSION), 0);
         usbManager.requestPermission(device, mPendingIntent);
     }
 
-    public void connect(){
+    public void connect() {
         HashMap<String, UsbDevice> usbDevices = usbManager.getDeviceList();
         if (!usbDevices.isEmpty()) {
             for (Map.Entry<String, UsbDevice> entry : usbDevices.entrySet()) {
                 device = entry.getValue();
-                requestUserPermission();
+                if(device.getVendorId() != 2965 && !usbManager.hasPermission(device)){//sunmi builtin port
+                    requestUserPermission();
+                }else{
+                    device = null;
+                }
             }
         }
     }
