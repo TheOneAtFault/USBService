@@ -1,0 +1,3 @@
+rootProject.name='USBService'
+include ':app'
+include ':usbservicelib'
