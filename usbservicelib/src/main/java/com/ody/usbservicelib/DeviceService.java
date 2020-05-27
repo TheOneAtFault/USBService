@@ -77,7 +77,7 @@ public class DeviceService extends Service {
                     Intent intent = new Intent(ACTION_USB_PERMISSION_GRANTED);
 
                     //device information
-                    if (device != null){
+                    if (device != null) {
                         Bundle bundle = new Bundle();
                         bundle.putInt("device_vendorId", device.getVendorId());
                         bundle.putInt("device_productId", device.getProductId());
@@ -124,12 +124,32 @@ public class DeviceService extends Service {
         if (!usbDevices.isEmpty()) {
             for (Map.Entry<String, UsbDevice> entry : usbDevices.entrySet()) {
                 device = entry.getValue();
-                if(device.getVendorId() != 2965 && !usbManager.hasPermission(device)){//sunmi builtin port
+                if (device.getVendorId() != 2965 && !usbManager.hasPermission(device)) {//sunmi builtin port
                     requestUserPermission();
-                }else{
+                } else {
                     device = null;
                 }
             }
+        }
+    }
+
+    public void connect(String deviceID) {
+        try {
+            int venId = Integer.parseInt(deviceID);
+            HashMap<String, UsbDevice> usbDevices = usbManager.getDeviceList();
+            if (!usbDevices.isEmpty()) {
+                for (Map.Entry<String, UsbDevice> entry : usbDevices.entrySet()) {
+                    device = entry.getValue();
+                    if (device.getVendorId() == venId) {//sunmi builtin port
+                        requestUserPermission();
+                        break;
+                    } else {
+                        device = null;
+                    }
+                }
+            }
+        } catch (Exception ignored) {
+            //ignored
         }
     }
 }
