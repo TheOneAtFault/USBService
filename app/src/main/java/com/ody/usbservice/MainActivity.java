@@ -2,6 +2,7 @@ package com.ody.usbservice;
 
 import androidx.appcompat.app.AppCompatActivity;
 
+import android.app.Activity;
 import android.content.BroadcastReceiver;
 import android.content.ComponentName;
 import android.content.Context;
@@ -9,16 +10,23 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.ServiceConnection;
 import android.os.Bundle;
+import android.os.Handler;
 import android.os.IBinder;
+import android.os.Message;
+import android.view.View;
+import android.widget.Button;
+import android.widget.EditText;
 import android.widget.Toast;
 
 import com.ody.usbservicelib.DeviceService;
 
+import java.lang.ref.WeakReference;
 import java.util.Set;
 
 public class MainActivity extends AppCompatActivity {
 
     static DeviceService usbDeviceService;
+   private MyHandler mHandler;
     Context _context;
     static final BroadcastReceiver mUsbReceiver = new BroadcastReceiver() {
         @Override
@@ -61,6 +69,7 @@ public class MainActivity extends AppCompatActivity {
             usbDeviceService = null;
         }
     };
+    private EditText editText;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -70,6 +79,21 @@ public class MainActivity extends AppCompatActivity {
         setFilters();  // Start listening notifications from UsbService
         startService(DeviceService.class, usbConnection, null);
 
+        editText = (EditText) findViewById(R.id.edt_content);
+        Button sendButton = (Button) findViewById(R.id.btn_send);
+        sendButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                if (!editText.getText().toString().equals("")) {
+                    String data = editText.getText().toString();
+                    if (usbDeviceService != null) { // if UsbService was correctly binded, Send data
+                        usbDeviceService.write(data.getBytes(),1900);
+                    }
+                }
+            }
+        });
+
+        mHandler = new MyHandler(this);
     }
 
     @Override
@@ -82,8 +106,9 @@ public class MainActivity extends AppCompatActivity {
     private void setFilters() {
         IntentFilter filter = new IntentFilter();
         filter.addAction(DeviceService.ACTION_USB_PERMISSION_GRANTED);
+        filter.addAction(DeviceService.ACTION_NO_USB);
         filter.addAction(DeviceService.ACTION_USB_DISCONNECTED);
-        filter.addAction(DeviceService.ACTION_USB_CONNECTED);
+        filter.addAction(DeviceService.ACTION_USB_NOT_SUPPORTED);
         filter.addAction(DeviceService.ACTION_USB_PERMISSION_NOT_GRANTED);
         registerReceiver(mUsbReceiver, filter);
     }
@@ -102,5 +127,28 @@ public class MainActivity extends AppCompatActivity {
         }
         Intent bindingIntent = new Intent(_context, service);
         _context.bindService(bindingIntent, serviceConnection, Context.BIND_AUTO_CREATE);
+    }
+
+    private static class MyHandler extends Handler {
+        private final WeakReference<Activity> mActivity;
+
+        public MyHandler(Activity activity) {
+            mActivity = new WeakReference<>(activity);
+        }
+
+        @Override
+        public void handleMessage(Message msg) {
+            switch (msg.what) {
+                case DeviceService.SYNC_READ:
+                    String buffer = (String) msg.obj;
+                    if(msg.arg1 == 0){
+                        //mActivity.get().display1.append(buffer);
+                    }else if(msg.arg1 == 1){
+                        //mActivity.get().display2.append(buffer);
+                    }
+
+                    break;
+            }
+        }
     }
 }
