@@ -33,9 +33,12 @@ public abstract class UsbSerialDevice implements UsbSerialInterface
 
     protected SerialBuffer serialBuffer;
 
-    protected WorkerThread workerThread;
-    protected WriteThread writeThread;
-    protected ReadThread readThread;
+    public WorkerThread workerThread;
+    public WriteThread writeThread;
+    public ReadThread readThread;
+
+    public Thread _writeThread;
+    public Thread _readThread;
 
     // Endpoints for synchronous read and write operations
     private UsbEndpoint inEndpoint;
@@ -288,6 +291,10 @@ public abstract class UsbSerialDevice implements UsbSerialInterface
 
     public int getDeviceVID(){
         return device.getVendorId();
+    }
+
+    public UsbDevice getDevice(){
+        return device;
     }
 
     //Debug options

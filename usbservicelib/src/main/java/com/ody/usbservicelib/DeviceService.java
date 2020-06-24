@@ -31,6 +31,10 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
+import static java.util.regex.Pattern.CASE_INSENSITIVE;
 
 
 public class DeviceService extends Service implements SerialPortCallback {
@@ -42,11 +46,11 @@ public class DeviceService extends Service implements SerialPortCallback {
 
     private Context context;
     private UsbManager usbManager;
-    private UsbDevice device;
+    private UsbDevice _device;
     private UsbDeviceConnection connection;
 
     //permission strings
-    private static final String ACTION_USB_PERMISSION = "com.android.example.USB_PERMISSION";
+    private static final String ACTION_USB_PERMISSION = "com.ody.usbservice.USB_PERMISSION";
     public static final String ACTION_USB_ATTACHED = "android.hardware.usb.action.USB_DEVICE_ATTACHED";
     public static final String ACTION_USB_DETACHED = "android.hardware.usb.action.USB_DEVICE_DETACHED";
     public static final String ACTION_USB_PERMISSION_GRANTED = "com.ody.usbservice.USB_PERMISSION_GRANTED";
@@ -64,8 +68,7 @@ public class DeviceService extends Service implements SerialPortCallback {
     private SerialPortBuilder builder;
     private Handler writeHandler;
     private WriteThread writeThread;
-
-    private ReadThreadCOM readThreadCOM1, readThreadCOM2;
+    private ReadThreadCOM readThread;
 
     private Handler mHandler;
     private final BroadcastReceiver usbReceiver = new BroadcastReceiver() {
@@ -76,36 +79,47 @@ public class DeviceService extends Service implements SerialPortCallback {
                 if (granted) // User accepted our USB connection. Try to open the device as a serial port
                 {
                     Intent intent = new Intent(ACTION_USB_PERMISSION_GRANTED);
-
+                    UsbDevice usbDevice = arg1.getParcelableExtra(UsbManager.EXTRA_DEVICE);
                     //device information
-                    if (device != null) {
+                    if (usbDevice != null) {
                         Bundle bundle = new Bundle();
-                        bundle.putInt("device_vendorId", device.getVendorId());
-                        bundle.putInt("device_productId", device.getProductId());
-                        bundle.putInt("device_Id", device.getDeviceId());
-                        bundle.putString("device_Name", device.getDeviceName());
+                        bundle.putInt("device_vendorId", usbDevice.getVendorId());
+                        bundle.putInt("device_productId", usbDevice.getProductId());
+                        bundle.putInt("device_Id", usbDevice.getDeviceId());
+                        bundle.putString("device_Name", usbDevice.getDeviceName());
                         intent.putExtras(bundle);
                     }
                     arg0.sendBroadcast(intent);
-
-                    connection = usbManager.openDevice(device);
                 } else // User not accepted our USB connection. Send an Intent to the Main Activity
                 {
                     Intent intent = new Intent(ACTION_USB_PERMISSION_NOT_GRANTED);
                     arg0.sendBroadcast(intent);
                 }
             } else if (arg1.getAction().equals(ACTION_USB_ATTACHED)) {
-                device = null;
-                Intent intent = new Intent(ACTION_USB_CONNECTED);
-                arg0.sendBroadcast(intent);
+
+                boolean ret = builder.openSerialPorts(context, BAUD_RATE,
+                        UsbSerialInterface.DATA_BITS_8,
+                        UsbSerialInterface.STOP_BITS_1,
+                        UsbSerialInterface.PARITY_NONE,
+                        UsbSerialInterface.FLOW_CONTROL_OFF);
+                if (!ret)
+                    Log.d(TAG, "onReceive: Couldnt open the device");
+
             } else if (arg1.getAction().equals(ACTION_USB_DETACHED)) {
-                // Usb device was disconnected. send an intent to the Main Activity
+
+                UsbDevice usbDevice = arg1.getParcelableExtra(UsbManager.EXTRA_DEVICE);
+                boolean ret = builder.disconnectDevice(usbDevice);
+
+                if(ret)
+                    Log.d(TAG, "onReceive: sb device disconnected");
+                else
+                    Log.d(TAG, "onReceive: Usb device wasnt a serial port");
+
                 Intent intent = new Intent(ACTION_USB_DISCONNECTED);
                 arg0.sendBroadcast(intent);
             }
         }
     };
-
 
     @Nullable
     @Override
@@ -117,22 +131,8 @@ public class DeviceService extends Service implements SerialPortCallback {
     public void onSerialPortsDetected(List<UsbSerialDevice> serialPorts) {
         this.serialPorts = serialPorts;
 
-        if(serialPorts.size() == 0)
+        if (serialPorts.size() == 0)
             return;
-
-        if (writeThread == null) {
-            writeThread = new WriteThread();
-            writeThread.start();
-        }
-
-        int index = 0;
-
-        if (readThreadCOM1 == null && index <= serialPorts.size()-1
-                && serialPorts.get(index).isOpen()) {
-            readThreadCOM1 = new ReadThreadCOM(index,
-                    serialPorts.get(index).getInputStream());
-            readThreadCOM1.start();
-        }
     }
 
     public class UsbBinder extends Binder {
@@ -161,19 +161,53 @@ public class DeviceService extends Service implements SerialPortCallback {
                 UsbSerialInterface.PARITY_NONE,
                 UsbSerialInterface.FLOW_CONTROL_OFF);
 
-        if(!ret)
+        if (!ret)
             Toast.makeText(context, "No Usb serial ports available", Toast.LENGTH_SHORT).show();
     }
 
-    public void write(byte[] data, int port){
-        if(writeThread != null) {
-            byte[] clear = new byte[]{0x0C};
-            byte[] allByteArray = new byte[clear.length + data.length];
-            ByteBuffer buff = ByteBuffer.wrap(allByteArray);
-            buff.put(clear);
-            buff.put(data);
+    @Override
+    public void onDestroy() {
+        super.onDestroy();
+        if (builder != null)
+            builder.unregisterListeners(context);
+        DeviceService.SERVICE_CONNECTED = false;
+    }
 
-            writeHandler.obtainMessage(0, port, 0, buff.array()).sendToTarget();
+    public void write(byte[] data, int port) {
+        try{
+            if (writeThread == null) {
+                writeThread = new WriteThread();
+                writeThread.start();
+            }
+            Thread.sleep(200);
+            if (writeThread != null) {
+                byte[] clear = new byte[]{0x0C};
+                byte[] allByteArray = new byte[clear.length + data.length];
+                ByteBuffer buff = ByteBuffer.wrap(allByteArray);
+                buff.put(clear);
+                buff.put(data);
+                try {
+                    writeHandler.obtainMessage(0, port, 0, buff.array()).sendToTarget();
+                } catch (Exception ignore) {
+                    //ignore
+                }
+            }
+        }catch (Exception ignore){
+            //ignore
+            Log.e(TAG, "write: caught", ignore);
+        }
+    }
+
+    public void read(int deviceID){
+        if (readThread == null ) {
+            for (UsbSerialDevice serialDevice: serialPorts){
+                if (serialDevice.getDeviceVID() == deviceID){
+                    readThread = new ReadThreadCOM(0,
+                            serialDevice.getInputStream());
+                    readThread.start();
+                    break;
+                }
+            }
         }
     }
 
@@ -186,9 +220,9 @@ public class DeviceService extends Service implements SerialPortCallback {
     }
 
     private void requestUserPermission() {
-        Log.d(TAG, String.format("requestUserPermission(%X:%X)", device.getVendorId(), device.getProductId()));
+        Log.d(TAG, String.format("requestUserPermission(%X:%X)", _device.getVendorId(), _device.getProductId()));
         PendingIntent mPendingIntent = PendingIntent.getBroadcast(this, 0, new Intent(ACTION_USB_PERMISSION), 0);
-        usbManager.requestPermission(device, mPendingIntent);
+        usbManager.requestPermission(_device, mPendingIntent);
     }
 
     public void setHandler(Handler mHandler) {
@@ -199,11 +233,11 @@ public class DeviceService extends Service implements SerialPortCallback {
         HashMap<String, UsbDevice> usbDevices = usbManager.getDeviceList();
         if (!usbDevices.isEmpty()) {
             for (Map.Entry<String, UsbDevice> entry : usbDevices.entrySet()) {
-                device = entry.getValue();
-                if (device.getVendorId() != 2965 && !usbManager.hasPermission(device)) {//sunmi builtin port
+                _device = entry.getValue();
+                if (_device.getVendorId() != 2965 && !usbManager.hasPermission(_device)) {//sunmi builtin port
                     requestUserPermission();
                 } else {
-                    device = null;
+                    _device = null;
                 }
             }
         }
@@ -215,12 +249,12 @@ public class DeviceService extends Service implements SerialPortCallback {
             HashMap<String, UsbDevice> usbDevices = usbManager.getDeviceList();
             if (!usbDevices.isEmpty()) {
                 for (Map.Entry<String, UsbDevice> entry : usbDevices.entrySet()) {
-                    device = entry.getValue();
-                    if (device.getVendorId() == venId) {//sunmi builtin port
+                    _device = entry.getValue();
+                    if (_device.getVendorId() == venId) {//sunmi builtin port
                         requestUserPermission();
                         break;
                     } else {
-                        device = null;
+                        _device = null;
                     }
                 }
             }
@@ -234,56 +268,63 @@ public class DeviceService extends Service implements SerialPortCallback {
         private AtomicBoolean keep = new AtomicBoolean(true);
         private SerialInputStream inputStream;
 
-        public ReadThreadCOM(int port, SerialInputStream serialInputStream){
+        public ReadThreadCOM(int port, SerialInputStream serialInputStream) {
             this.port = port;
             this.inputStream = serialInputStream;
         }
 
         @Override
         public void run() {
-            while(keep.get()){
-                if(inputStream == null)
-                    return;
-                int value = inputStream.read();
-                if(value != -1) {
-                    String str = toASCII(value);
-                    mHandler.obtainMessage(SYNC_READ, port, 0, str).sendToTarget();
+            while (keep.get()) {
+                try {
+                    Thread.sleep(200);
+                    byte[] rbuf = new byte[40];
+                    StringBuffer sbHex = new StringBuffer();
+                    if (inputStream == null)
+                        return;
+                    int value = inputStream.read(rbuf);
+                    if (value >= 13) {
+                        for (int j = 0; j < value; j++) {
+                            sbHex.append((char) (rbuf[j] & 0x000000FF));
+                        }
+                        final String regex = "([\\d]{3}.[\\d]{3})(?!\\s+.(.).\\1)\\b";
+                        Pattern p = Pattern.compile(regex, CASE_INSENSITIVE);
+                        Matcher matcher = p.matcher(sbHex.toString());
+                        if (matcher.find()) {
+                            mHandler.obtainMessage(SYNC_READ, port, 0, matcher.group()).sendToTarget();
+                        }
+                    }
+                } catch (Exception ignore) {
+                    Log.e(TAG, "run: caught this one", ignore);
+                    //ignore
                 }
             }
         }
 
-        public void setKeep(boolean keep){
+        public void setKeep(boolean keep) {
             this.keep.set(keep);
         }
     }
 
-    private static String toASCII(int value) {
-        int length = 4;
-        StringBuilder builder = new StringBuilder(length);
-        for (int i = length - 1; i >= 0; i--) {
-            builder.append((char) ((value >> (8 * i)) & 0xFF));
-        }
-        return builder.toString();
-    }
-
-    private class WriteThread extends Thread{
-
+    private class WriteThread extends Thread {
         @Override
         //@SuppressLint("HandlerLeak")
         public void run() {
             Looper.prepare();
-            writeHandler = new Handler(){
+            writeHandler = new Handler() {
                 @Override
                 public void handleMessage(Message msg) {
                     //lets break it
                     int requestedDevice = msg.arg1;
                     byte[] data = (byte[]) msg.obj;
-                    for (UsbSerialDevice port: serialPorts ) {
-                        int vendorID = port.getDeviceVID();
-                        String portName = port.getPortName();
-                        if (!"".equals(portName) && requestedDevice == vendorID){
-                            UsbSerialDevice serialDevice = port;
-                            serialDevice.getOutputStream().write(data);
+                    if (serialPorts != null) {
+                        for (UsbSerialDevice port : serialPorts) {
+                            int vendorID = port.getDeviceVID();
+                            String portName = port.getPortName();
+                            if (!"".equals(portName) && requestedDevice == vendorID) {
+                                UsbSerialDevice serialDevice = port;
+                                serialDevice.getOutputStream().write(data);
+                            }
                         }
                     }
                 }

@@ -16,9 +16,11 @@ import android.os.Message;
 import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.TextView;
 import android.widget.Toast;
 
 import com.ody.usbservicelib.DeviceService;
+import com.ody.usbservicelib.usbserialdrivers.UsbSerialDevice;
 
 import java.lang.ref.WeakReference;
 import java.util.Set;
@@ -26,32 +28,25 @@ import java.util.Set;
 public class MainActivity extends AppCompatActivity {
 
     static DeviceService usbDeviceService;
-   private MyHandler mHandler;
+    private static MyHandler mHandler;
     Context _context;
-    static final BroadcastReceiver mUsbReceiver = new BroadcastReceiver() {
+    static TextView display;
+    int readDeviceId = 1659;
+    final BroadcastReceiver mUsbReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
             switch (intent.getAction()) {
                 case DeviceService.ACTION_USB_PERMISSION_GRANTED: // USB PERMISSION GRANTED
-
-                    int deviceVendor = intent.getIntExtra("device_vendorId",0);
-                    if (deviceVendor != 0){
-                        //Toast.makeText(context, "in here", Toast.LENGTH_SHORT).show();
-                        if (deviceVendor == 6997){
-                            String tets = "";
-                            //Toast.makeText(context, "USB Ready", Toast.LENGTH_SHORT).show();
-                        }
-                    }
-
+                    //Toast.makeText(context, "USB Ready", Toast.LENGTH_SHORT).show();
                     break;
                 case DeviceService.ACTION_USB_PERMISSION_NOT_GRANTED: // USB PERMISSION NOT GRANTED
-                    Toast.makeText(context, "USB Permission not granted", Toast.LENGTH_SHORT).show();
+                    //Toast.makeText(context, "USB Permission not granted", Toast.LENGTH_SHORT).show();
                     break;
                 case DeviceService.ACTION_USB_DISCONNECTED: // USB DISCONNECTED
-                    Toast.makeText(context, "USB disconnected", Toast.LENGTH_SHORT).show();
+                    //Toast.makeText(context, "USB disconnected", Toast.LENGTH_SHORT).show();
                     break;
                 case DeviceService.ACTION_USB_CONNECTED: // USB DISCONNECTED
-                    Toast.makeText(context, "USB connected", Toast.LENGTH_SHORT).show();
+                    //Toast.makeText(context, "USB connected", Toast.LENGTH_SHORT).show();
                     usbDeviceService.connect();
                     break;
             }
@@ -62,6 +57,7 @@ public class MainActivity extends AppCompatActivity {
         @Override
         public void onServiceConnected(ComponentName arg0, IBinder arg1) {
             usbDeviceService = ((DeviceService.UsbBinder) arg1).getService();
+            usbDeviceService.setHandler(mHandler);
         }
 
         @Override
@@ -80,20 +76,26 @@ public class MainActivity extends AppCompatActivity {
         startService(DeviceService.class, usbConnection, null);
 
         editText = (EditText) findViewById(R.id.edt_content);
+        display = (TextView) findViewById(R.id.tv_display);
         Button sendButton = (Button) findViewById(R.id.btn_send);
         sendButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                if (!editText.getText().toString().equals("")) {
-                    String data = editText.getText().toString();
-                    if (usbDeviceService != null) { // if UsbService was correctly binded, Send data
-                        usbDeviceService.write(data.getBytes(),1900);
-                    }
+                String data = editText.getText().toString();
+                if (usbDeviceService != null) { // if UsbService was correctly binded, Send data
+                    usbDeviceService.write(data.getBytes(), 1900);
+                    usbDeviceService.read(1659);
                 }
             }
         });
 
         mHandler = new MyHandler(this);
+    }
+
+    public void writeSerial(String text){
+        if(usbDeviceService != null){
+            usbDeviceService.write(text.getBytes(),1900);
+        }
     }
 
     @Override
@@ -141,11 +143,7 @@ public class MainActivity extends AppCompatActivity {
             switch (msg.what) {
                 case DeviceService.SYNC_READ:
                     String buffer = (String) msg.obj;
-                    if(msg.arg1 == 0){
-                        //mActivity.get().display1.append(buffer);
-                    }else if(msg.arg1 == 1){
-                        //mActivity.get().display2.append(buffer);
-                    }
+                    display.setText(buffer);
 
                     break;
             }

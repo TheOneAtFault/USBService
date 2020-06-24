@@ -19,7 +19,7 @@ import java.util.List;
 import java.util.concurrent.ArrayBlockingQueue;
 
 public class SerialPortBuilder {
-    private static final String ACTION_USB_PERMISSION = "com.felhr.usbserial.USB_PERMISSION";
+    private static final String ACTION_USB_PERMISSION = "com.ody.usbservice.USB_PERMISSION";
     private static final int MODE_START = 0;
     private static final int MODE_OPEN = 1;
 
