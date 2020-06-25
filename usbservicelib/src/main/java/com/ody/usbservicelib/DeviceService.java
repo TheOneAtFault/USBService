@@ -52,7 +52,7 @@ public class DeviceService extends Service implements SerialPortCallback {
     //permission strings
     private static final String ACTION_USB_PERMISSION = "com.ody.usbservice.USB_PERMISSION";
     public static final String ACTION_USB_ATTACHED = "android.hardware.usb.action.USB_DEVICE_ATTACHED";
-    public static final String ACTION_USB_DETACHED = "android.hardware.usb.action.USB_DEVICE_DETACHED";
+    public static final String ACTION_USB_DETACHED = "android.hardware.usb.laction.USB_DEVICE_DETACHED";
     public static final String ACTION_USB_PERMISSION_GRANTED = "com.ody.usbservice.USB_PERMISSION_GRANTED";
     public static final String ACTION_USB_PERMISSION_NOT_GRANTED = "com.ody.usbservice.USB_PERMISSION_NOT_GRANTED";
     public static final String ACTION_USB_DISCONNECTED = "com.ody.usbservice.USB_DISCONNECTED";
@@ -162,7 +162,7 @@ public class DeviceService extends Service implements SerialPortCallback {
                 UsbSerialInterface.FLOW_CONTROL_OFF);
 
         if (!ret)
-            Toast.makeText(context, "No Usb serial ports available", Toast.LENGTH_SHORT).show();
+            Log.d(TAG, "onCreate: No Usb serial ports available");
     }
 
     @Override
@@ -179,18 +179,14 @@ public class DeviceService extends Service implements SerialPortCallback {
                 writeThread = new WriteThread();
                 writeThread.start();
             }
-            Thread.sleep(200);
+            Thread.sleep(300);
             if (writeThread != null) {
                 byte[] clear = new byte[]{0x0C};
                 byte[] allByteArray = new byte[clear.length + data.length];
                 ByteBuffer buff = ByteBuffer.wrap(allByteArray);
                 buff.put(clear);
                 buff.put(data);
-                try {
-                    writeHandler.obtainMessage(0, port, 0, buff.array()).sendToTarget();
-                } catch (Exception ignore) {
-                    //ignore
-                }
+                writeHandler.obtainMessage(0, port, 0, buff.array()).sendToTarget();
             }
         }catch (Exception ignore){
             //ignore
