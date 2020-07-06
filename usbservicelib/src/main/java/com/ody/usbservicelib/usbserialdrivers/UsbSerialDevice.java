@@ -293,6 +293,10 @@ public abstract class UsbSerialDevice implements UsbSerialInterface
         return device.getVendorId();
     }
 
+    public int getDeviceProdID(){
+        return device.getProductId();
+    }
+
     public UsbDevice getDevice(){
         return device;
     }

@@ -179,8 +179,8 @@ public class DeviceService extends Service implements SerialPortCallback {
                 writeThread = new WriteThread();
                 writeThread.start();
             }
-            Thread.sleep(300);
-            if (writeThread != null) {
+            Thread.sleep(200);
+            if (writeThread != null && writeHandler != null) {
                 byte[] clear = new byte[]{0x0C};
                 byte[] allByteArray = new byte[clear.length + data.length];
                 ByteBuffer buff = ByteBuffer.wrap(allByteArray);
@@ -195,9 +195,9 @@ public class DeviceService extends Service implements SerialPortCallback {
     }
 
     public void read(int deviceID){
-        if (readThread == null ) {
+        if (readThread == null && serialPorts != null) {
             for (UsbSerialDevice serialDevice: serialPorts){
-                if (serialDevice.getDeviceVID() == deviceID){
+                if (serialDevice.getDeviceProdID() == deviceID){
                     readThread = new ReadThreadCOM(0,
                             serialDevice.getInputStream());
                     readThread.start();
@@ -241,12 +241,12 @@ public class DeviceService extends Service implements SerialPortCallback {
 
     public void connect(String deviceID) {
         try {
-            int venId = Integer.parseInt(deviceID);
+            int anID = Integer.parseInt(deviceID);
             HashMap<String, UsbDevice> usbDevices = usbManager.getDeviceList();
             if (!usbDevices.isEmpty()) {
                 for (Map.Entry<String, UsbDevice> entry : usbDevices.entrySet()) {
                     _device = entry.getValue();
-                    if (_device.getVendorId() == venId) {//sunmi builtin port
+                    if (_device.getProductId() == anID) {//sunmi builtin port
                         requestUserPermission();
                         break;
                     } else {
@@ -315,9 +315,9 @@ public class DeviceService extends Service implements SerialPortCallback {
                     byte[] data = (byte[]) msg.obj;
                     if (serialPorts != null) {
                         for (UsbSerialDevice port : serialPorts) {
-                            int vendorID = port.getDeviceVID();
+                            int anId = port.getDeviceProdID();
                             String portName = port.getPortName();
-                            if (!"".equals(portName) && requestedDevice == vendorID) {
+                            if (!"".equals(portName) && requestedDevice == anId) {
                                 UsbSerialDevice serialDevice = port;
                                 serialDevice.getOutputStream().write(data);
                             }

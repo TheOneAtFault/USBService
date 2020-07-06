@@ -83,8 +83,8 @@ public class MainActivity extends AppCompatActivity {
             public void onClick(View v) {
                 String data = editText.getText().toString();
                 if (usbDeviceService != null) { // if UsbService was correctly binded, Send data
-                    usbDeviceService.write(data.getBytes(), 1900);
-                    usbDeviceService.read(1659);
+                    usbDeviceService.write(data.getBytes(), 516);
+                    usbDeviceService.read(8963);
                 }
             }
         });
